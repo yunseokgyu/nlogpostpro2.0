@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Professional Photographer Portfolio - Capturing moments, creating memories.">
+    <title>LUMINA | Photography Portfolio</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="logo">LUMINA</div>
+        <div class="nav-links">
+            <a href="#home">Home</a>
+            <a href="#gallery">Gallery</a>
+            <a href="#about">About</a>
+            <a href="#contact">Contact</a>
+        </div>
+    </nav>
+
+    <header id="home" class="hero">
+        <div class="hero-content">
+            <h1>Capture the Unexpected</h1>
+            <p>Fine Art & Portrait Photography</p>
+            <a href="#gallery" class="btn-primary">View Portfolio</a>
+        </div>
+    </header>
+
+    <section id="gallery" class="gallery-section">
+        <div class="section-header">
+            <h2>Selected Works</h2>
+            <p>A collection of moments frozen in time.</p>
+        </div>
+        <div class="gallery-grid">
+            <div class="gallery-item large">
+                <img src="public/images/hero.png" alt="Black and White Lens Detail">
+                <div class="overlay">
+                    <span>The Vision</span>
+                </div>
+            </div>
+            <div class="gallery-item">
+                <img src="public/images/portrait.png" alt="Fashion Portrait">
+                <div class="overlay">
+                    <span>Ethereal Light</span>
+                </div>
+            </div>
+            <div class="gallery-item">
+                <img src="public/images/landscape.png" alt="Misty Landscape">
+                <div class="overlay">
+                    <span>Serenity</span>
+                </div>
+            </div>
+            <!-- Duplicating for grid effect -->
+            <div class="gallery-item">
+                <img src="public/images/portrait.png" alt="Portrait Work">
+                <div class="overlay">
+                    <span>Golden Hour</span>
+                </div>
+            </div>
+             <div class="gallery-item large">
+                 <img src="public/images/landscape.png" alt="Nature Photography">
+                 <div class="overlay">
+                    <span>Wilderness</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="about" class="about-section">
+        <div class="about-content">
+            <h2>About the Artist</h2>
+            <p>Driven by light and shadow, I craft images that tell stories beyond words. With over a decade of experience in fine art and commercial photography, my goal is to reveal the beauty in the unseen.</p>
+        </div>
+    </section>
+
+    <section id="contact" class="contact-section">
+        <h2>Let's Create Together</h2>
+        <p>Open for commissions and collaborations.</p>
+        <a href="mailto:hello@lumina.photo" class="btn-outline">Get in Touch</a>
+    </section>
+
+    <footer>
+        <p>&copy; 2025 LUMINA Photography. All rights reserved.</p>
+    </footer>
+
+    <script>
+        // Simple scroll effect for navbar
+        window.addEventListener('scroll', () => {
+            const navbar = document.querySelector('.navbar');
+            if (window.scrollY > 50) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+        });
+    </script>
+</body>
+</html>

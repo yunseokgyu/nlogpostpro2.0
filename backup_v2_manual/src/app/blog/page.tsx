@@ -14,34 +14,17 @@ interface BlogProfile {
     createdAt: string;
 }
 
-// --- Types ---
-
-interface BlogProfile {
-    id: string;
-    name: string;
-    category: string;
-    style: string;
-    createdAt: string;
-}
-
 interface BatchItem {
     id: string;
     title: string;
-    keywords: string[];
+    keywords: string[]; // Changed to array
     status: 'idle' | 'loading' | 'success' | 'error';
     result?: string;
     errorMsg?: string;
-    profileId?: string; // Specific profile for this task
-    profileName?: string; // Display name
 }
 
-
+// Fixed Categories
 const DEFAULT_CATEGORIES = [
-    "IT/테크", "일상/브이로그", "맛집/여행", "금융/재테크", "뷰티/패션",
-    "건강/운동", "육아/교육", "게임/취미", "리뷰/후기", "기타"
-];
-
-const POST_TYPES = [
     "IT/테크", "일상/브이로그", "맛집/여행", "금융/재테크", "뷰티/패션",
     "건강/운동", "육아/교육", "게임/취미", "리뷰/후기", "기타"
 ];
@@ -136,21 +119,16 @@ export default function BlogPage() {
     // --- Single Gen State ---
     const [singleTitle, setSingleTitle] = useState('');
     const [singleKeywords, setSingleKeywords] = useState<string[]>([]);
-    const [singleRefUrl, setSingleRefUrl] = useState('');
+    const [singleRefUrl, setSingleRefUrl] = useState(''); // New: Reference URL
     const [singleProfileId, setSingleProfileId] = useState('');
-    const [singlePostType, setSinglePostType] = useState(POST_TYPES[0]); // New: Explicit Post Type Selection
     const [singleContent, setSingleContent] = useState('');
-    const [singleStats, setSingleStats] = useState<{ charCount: number, keywordCounts: Record<string, number> } | null>(null);
+    const [singleStats, setSingleStats] = useState<{ charCount: number, keywordCounts: Record<string, number> } | null>(null); // New: Stats
     const [singleLoading, setSingleLoading] = useState(false);
     const [singleError, setSingleError] = useState('');
-    const [selectedGroup, setSelectedGroup] = useState<string>('전체'); // New: Group Filter State
-    const [sidebarSelectedGroup, setSidebarSelectedGroup] = useState<string>('전체'); // New: Sidebar Group Filter State
 
     // --- Batch Gen State ---
     const [batchItems, setBatchItems] = useState<BatchItem[]>([{ id: '1', title: '', keywords: [], status: 'idle' }]);
-    const [batchProfileIds, setBatchProfileIds] = useState<string[]>([]);
-    const [batchPostType, setBatchPostType] = useState(POST_TYPES[0]); // New: Batch Post Type
-
+    const [batchProfileId, setBatchProfileId] = useState('');
     const [batchProcessing, setBatchProcessing] = useState(false);
 
     // Auto-fill state
@@ -213,22 +191,13 @@ export default function BlogPage() {
         setProfiles(updated);
         localStorage.setItem('blog_profiles', JSON.stringify(updated));
         if (singleProfileId === id) setSingleProfileId('');
-        setBatchProfileIds(prev => prev.filter(pid => pid !== id));
+        if (batchProfileId === id) setBatchProfileId('');
     };
 
-    const handleClearProfiles = () => {
-        if (!confirm("⚠️ 주의: 모든 프로필이 삭제됩니다.\n\n새로운 그룹 설정과 충돌 방지를 위해 초기화하시겠습니까? (복구 불가)")) return;
-        setProfiles([]);
-        localStorage.removeItem('blog_profiles');
-        setSingleProfileId('');
-        setBatchProfileIds([]);
-        alert("모든 프로필이 초기화되었습니다. 새로운 그룹에 맞춰 프로필을 다시 생성해주세요.");
-    };
-
-    const generateBlog = async (title: string, keywords: string[], profileId: string, category: string, refUrl?: string) => {
+    const generateBlog = async (title: string, keywords: string[], profileId: string, refUrl?: string) => {
         const profile = profiles.find(p => p.id === profileId);
         const style = profile ? profile.style : '';
-        // Category is now passed explicitly as an argument, not from profile
+        const category = profile ? profile.category : '기타';
 
         const res = await fetch('/api/blog', {
             method: 'POST',
@@ -250,7 +219,7 @@ export default function BlogPage() {
         setSingleStats(null);
 
         try {
-            const data = await generateBlog(singleTitle, singleKeywords, singleProfileId, singlePostType, singleRefUrl);
+            const data = await generateBlog(singleTitle, singleKeywords, singleProfileId, singleRefUrl);
             setSingleContent(data.content);
             setSingleStats({ charCount: data.charCount, keywordCounts: data.keywordCounts });
         } catch (e: any) {
@@ -296,79 +265,28 @@ export default function BlogPage() {
         setBatchItems(batchItems.filter(item => item.id !== id));
     };
 
-    // Toggle profile selection
-    const toggleBatchProfile = (id: string) => {
-        setBatchProfileIds(prev => {
-            if (prev.includes(id)) {
-                return prev.filter(pid => pid !== id);
-            } else {
-                if (prev.length >= 10) {
-                    alert("최대 10개까지만 선택 가능합니다.");
-                    return prev;
-                }
-                return [...prev, id];
-            }
-        });
-    };
-
     const handleBatchGenerate = async () => {
         if (!apiKey) return alert("API Key가 필요합니다.");
-        if (batchProfileIds.length === 0) return alert("프로필을 최소 1개 이상 선택해주세요.");
-
-        // Filter valid template items
-        const validTemplates = batchItems.filter(item => item.title && item.keywords.length > 0);
-
-        if (validTemplates.length === 0) return alert("작업할 주제를 입력해주세요.");
-
-        if (!confirm(`선택된 ${batchProfileIds.length}개의 프로필로 총 ${validTemplates.length * batchProfileIds.length}개의 글을 생성하시겠습니까?`)) return;
+        if (!batchProfileId) return alert("프로필을 선택해주세요.");
 
         setBatchProcessing(true);
 
-        // Expand tasks: Templates x Profiles
-        const expandedItems: BatchItem[] = [];
+        for (let i = 0; i < batchItems.length; i++) {
+            const item = batchItems[i];
 
-        // We use the current timestamp to generate unique IDs, but ensuring uniqueness across loop
-        let idCounter = Date.now();
-
-        batchProfileIds.forEach(pid => {
-            const profile = profiles.find(p => p.id === pid);
-            const pName = profile ? profile.name : 'Unknown';
-
-            validTemplates.forEach(template => {
-                expandedItems.push({
-                    id: (idCounter++).toString(),
-                    title: template.title, // Keep original title
-                    keywords: [...template.keywords],
-                    status: 'idle',
-                    profileId: pid,
-                    profileName: pName
-                });
-            });
-        });
-
-        // Update state with expanded list
-        setBatchItems(expandedItems);
-
-        // Process loop
-        for (let i = 0; i < expandedItems.length; i++) {
-            const item = expandedItems[i];
-
-            // Skip already processed (though here all are new)
+            if (!item.title || item.keywords.length === 0) continue;
             if (item.status === 'success') continue;
 
-            // Update status to loading
             setBatchItems(prev => prev.map(it => it.id === item.id ? { ...it, status: 'loading', errorMsg: undefined } : it));
 
             try {
-                // Use the specific profile for this item, but common batchPostType
-                const data = await generateBlog(item.title, item.keywords, item.profileId!, batchPostType, batchRefUrl);
+                const data = await generateBlog(item.title, item.keywords, batchProfileId, batchRefUrl);
                 setBatchItems(prev => prev.map(it => it.id === item.id ? { ...it, status: 'success', result: data.content } : it));
             } catch (e: any) {
                 setBatchItems(prev => prev.map(it => it.id === item.id ? { ...it, status: 'error', errorMsg: e.message } : it));
             }
 
-            // Delay between requests
-            if (i < expandedItems.length - 1) {
+            if (i < batchItems.length - 1) {
                 await new Promise(resolve => setTimeout(resolve, 2000));
             }
         }
@@ -376,7 +294,7 @@ export default function BlogPage() {
         setBatchProcessing(false);
     };
 
-    const handleDownloadAll = async (format: 'txt' | 'md') => {
+    const handleDownloadAll = async () => {
         const successfulItems = batchItems.filter(item => item.status === 'success' && item.result);
 
         if (successfulItems.length === 0) {
@@ -384,19 +302,14 @@ export default function BlogPage() {
             return;
         }
 
+        if (!confirm(`${successfulItems.length}개의 파일을 ZIP으로 압축하여 다운로드합니다.`)) return;
+
         const zip = new JSZip();
 
         successfulItems.forEach((item, index) => {
             const safeTitle = item.title.replace(/[\/\\?%*:|"<>]/g, '_').trim();
-            const safeProfile = item.profileName?.replace(/[\/\\?%*:|"<>]/g, '_').trim() || 'NoProfile';
-
-            // File naming: 1_[Profile]_Title
-            const fileName = `${index + 1}_[${safeProfile}]_${safeTitle || 'untitled'}.${format}`;
-
-            let content = item.result || "";
-            // For TXT, maybe strip markdown? For now, we just save raw content as requested, mostly likely markdown text.
-
-            zip.file(fileName, content);
+            const fileName = `${index + 1}_${safeTitle || 'untitled'}.txt`;
+            zip.file(fileName, item.result || "");
         });
 
         try {
@@ -404,7 +317,7 @@ export default function BlogPage() {
             const url = window.URL.createObjectURL(content);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `블로그_일괄생성_${new Date().toISOString().slice(0, 10)}_${format.toUpperCase()}.zip`;
+            a.download = `블로그_일괄생성_${new Date().toISOString().slice(0, 10)}.zip`;
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);
@@ -447,7 +360,7 @@ export default function BlogPage() {
     // --- Renders ---
 
     return (
-        <div className="min-h-screen bg-gray-50 flex justify-center p-4 lg:p-8 font-sans text-gray-800 relative text-lg">
+        <div className="min-h-screen bg-gray-50 flex justify-center p-4 lg:p-8 font-sans text-gray-800 relative">
 
             {/* Group Settings Modal */}
             {isGroupModalOpen && (
@@ -547,44 +460,18 @@ export default function BlogPage() {
                                         <div className="xl:col-span-4 space-y-4 flex-none">
 
                                             {/* Profile Select */}
-                                            <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100 space-y-4">
-                                                <div>
-                                                    <label className="block text-sm font-bold text-gray-600 mb-2">0. 그룹 선택 (필터)</label>
-                                                    <select
-                                                        value={selectedGroup}
-                                                        onChange={(e) => setSelectedGroup(e.target.value)}
-                                                        className="w-full p-3 mb-4 bg-white border border-blue-200 rounded-xl focus:border-blue-500 outline-none text-sm text-gray-700 font-medium"
-                                                    >
-                                                        <option value="전체">전체 보기</option>
-                                                        {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                                                    </select>
-
-                                                    <label className="block text-xs font-bold text-gray-500 mb-2">1. 작성 프로필 (페르소나)</label>
-                                                    <select
-                                                        value={singleProfileId}
-                                                        onChange={(e) => setSingleProfileId(e.target.value)}
-                                                        className="w-full p-3 bg-white border border-gray-200 rounded-xl focus:border-blue-500 outline-none text-sm"
-                                                    >
-                                                        <option value="">프로필을 선택하세요</option>
-                                                        {profiles
-                                                            .filter(p => selectedGroup === '전체' || p.category === selectedGroup)
-                                                            .map(p => <option key={p.id} value={p.id}>{p.name} ({p.category})</option>)}
-                                                    </select>
-                                                </div>
-
-                                                <div>
-                                                    <label className="block text-xs font-bold text-gray-500 mb-2">2. 포스팅 유형 (글 구조)</label>
-                                                    <select
-                                                        value={singlePostType}
-                                                        onChange={(e) => setSinglePostType(e.target.value)}
-                                                        className="w-full p-3 bg-white border border-gray-200 rounded-xl focus:border-blue-500 outline-none text-sm"
-                                                    >
-                                                        {POST_TYPES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-
-                                                    </select>
-                                                    <div className="mt-2 text-[10px] text-gray-400 px-1">
-                                                        * 선택한 <b>포스팅 유형</b>에 맞춰 글의 구조와 흐름이 결정됩니다.
-                                                    </div>
+                                            <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100">
+                                                <label className="block text-xs font-bold text-gray-500 mb-2">작성 프로필 (필수)</label>
+                                                <select
+                                                    value={singleProfileId}
+                                                    onChange={(e) => setSingleProfileId(e.target.value)}
+                                                    className="w-full p-3 bg-white border border-gray-200 rounded-xl focus:border-blue-500 outline-none text-sm"
+                                                >
+                                                    <option value="">프로필을 선택하세요</option>
+                                                    {profiles.map(p => <option key={p.id} value={p.id}>[{p.category}] {p.name}</option>)}
+                                                </select>
+                                                <div className="mt-2 text-[10px] text-gray-400 px-1">
+                                                    * 선택한 프로필의 <b>카테고리</b>에 맞춰 글 구조가 최적화됩니다.
                                                 </div>
                                             </div>
 
@@ -681,96 +568,21 @@ export default function BlogPage() {
                             {activeTab === 'batch' && (
                                 <div className="space-y-6 animate-fade-in pb-10 max-w-3xl mx-auto">
                                     <div className="bg-indigo-50/50 p-6 rounded-2xl border border-indigo-100 mb-4">
-                                        <div className="mb-4">
-                                            <h2 className="text-lg font-bold text-indigo-900 flex items-center gap-2 mb-3">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h2 className="text-lg font-bold text-indigo-900 flex items-center gap-2">
                                                 <Zap className="w-5 h-5 text-indigo-600" /> 일괄 작업 설정
                                             </h2>
-
-                                            {/* Profile Buttons Grid */}
-                                            <div className="bg-white/60 rounded-xl p-3 border border-indigo-100 shadow-sm">
-                                                <div className="flex justify-between items-center mb-2 px-1">
-                                                    <span className="text-xs font-bold text-gray-500 flex items-center gap-1">
-                                                        <Users className="w-3 h-3" /> 작업할 프로필 선택 <span className="text-indigo-400 font-normal">(최대 10개)</span>
-                                                    </span>
-                                                    <span className={`text-xs font-bold ${batchProfileIds.length > 0 ? 'text-indigo-600' : 'text-gray-400'}`}>
-                                                        {batchProfileIds.length}개 선택됨
-                                                    </span>
-                                                </div>
-
-                                                {/* Batch Group Filter */}
-                                                <div className="mb-4">
-                                                    <label className="block text-sm font-bold text-gray-600 mb-2">그룹 필터</label>
-                                                    <select
-                                                        value={selectedGroup}
-                                                        onChange={(e) => setSelectedGroup(e.target.value)}
-                                                        className="w-full p-3 bg-white border border-indigo-200 rounded-xl focus:border-indigo-500 outline-none text-sm text-gray-700 font-medium"
-                                                    >
-                                                        <option value="전체">전체 그룹 보기</option>
-                                                        {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                                                    </select>
-                                                </div>
-
-                                                <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto custom-scrollbar p-1">
-                                                    {profiles
-                                                        .filter(p => selectedGroup === '전체' || p.category === selectedGroup)
-                                                        .map(p => (
-                                                            <button
-                                                                key={p.id}
-                                                                onClick={() => toggleBatchProfile(p.id)}
-                                                                className={`
-                                                                px-3 py-2 rounded-xl border text-left text-xs transition-all flex items-center gap-2 flex-none
-                                                                ${batchProfileIds.includes(p.id)
-                                                                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700 font-bold ring-1 ring-indigo-500 shadow-md transform scale-105'
-                                                                        : 'border-gray-200 bg-white text-gray-600 hover:border-indigo-300 hover:bg-indigo-50/50 hover:shadow-sm'}
-                                                            `}
-                                                            >
-                                                                <span className={`w-2 h-2 rounded-full flex-none ${batchProfileIds.includes(p.id) ? 'bg-indigo-600' : 'bg-gray-300'}`} />
-                                                                <span className="truncate max-w-[100px]">{p.name}</span>
-                                                                <span className="text-[10px] opacity-70 flex-none hidden sm:inline-block">({p.category})</span>
-                                                            </button>
-                                                        ))}
-                                                    {profiles.length === 0 && (
-                                                        <div className="w-full text-center py-6 text-gray-400 text-xs border border-dashed border-gray-300 rounded-lg">
-                                                            생성된 프로필이 없습니다. 먼저 프로필을 추가해주세요.
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
+                                            <select
+                                                value={batchProfileId}
+                                                onChange={(e) => setBatchProfileId(e.target.value)}
+                                                className="px-4 py-2 border border-indigo-200 rounded-lg text-sm min-w-[200px] focus:ring-2 ring-indigo-200 outline-none"
+                                            >
+                                                <option value="">프로필 선택... (필수)</option>
+                                                {profiles.map(p => <option key={p.id} value={p.id}>{p.name} ({p.category})</option>)}
+                                            </select>
                                         </div>
 
-
-
-                                        {/* Common Batch Settings: Post Type & Reference URL */}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 mb-2">공통 포스팅 유형</label>
-                                                <div className="relative">
-                                                    <select
-                                                        value={batchPostType}
-                                                        onChange={(e) => setBatchPostType(e.target.value)}
-                                                        className="w-full p-3 bg-white border border-indigo-200 rounded-xl focus:border-indigo-500 outline-none text-sm appearance-none"
-                                                    >
-                                                        {POST_TYPES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-
-                                                    </select>
-                                                    <Settings className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-xs font-bold text-purple-600 mb-2 flex items-center gap-1">
-                                                    <LinkIcon className="w-3 h-3" /> 참고/모방 URL (선택)
-                                                </label>
-                                                <input
-                                                    placeholder="https://..."
-                                                    value={batchRefUrl}
-                                                    onChange={(e) => setBatchRefUrl(e.target.value)}
-                                                    className="w-full px-3 py-3 text-sm border border-purple-200 bg-purple-50/50 rounded-xl focus:outline-none focus:border-purple-400 placeholder-purple-300 text-purple-800"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="flex gap-2 mb-2 pt-4 border-t border-indigo-100">
+                                        <div className="flex gap-2 mb-2">
                                             <input
                                                 placeholder="공통 주제 (예: 제주도 맛집)"
                                                 value={autoTitle}
@@ -790,9 +602,17 @@ export default function BlogPage() {
                                                 목록 10개 채우기
                                             </button>
                                         </div>
+                                        {/* Batch Ref URL Input */}
+                                        <div className="flex items-center gap-2 mt-2">
+                                            <LinkIcon className="w-4 h-4 text-purple-600" />
+                                            <input
+                                                placeholder="공통 참고/모방 블로그 URL (선택사항 - 입력 시 모든 일괄 작업에 스타일 적용)"
+                                                value={batchRefUrl}
+                                                onChange={(e) => setBatchRefUrl(e.target.value)}
+                                                className="flex-1 px-3 py-2 text-sm border border-purple-200 bg-purple-50/50 rounded-lg focus:outline-none focus:border-purple-400 placeholder-purple-300 text-purple-800"
+                                            />
+                                        </div>
                                     </div>
-                                    {/* Removed old batchRefUrl input from here as it moved up */}
-
 
                                     <div className="space-y-3 pr-2">
                                         {batchItems.map((item, idx) => (
@@ -800,37 +620,23 @@ export default function BlogPage() {
                                                 <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-500 text-xs flex-none">
                                                     {idx + 1}
                                                 </div>
-
-                                                {/* Expanded Item Info */}
-                                                {item.profileName && (
-                                                    <div className="bg-indigo-100 text-indigo-700 px-2 py-1 rounded text-xs font-bold whitespace-nowrap">
-                                                        {item.profileName}
-                                                    </div>
-                                                )}
-
                                                 <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                     <input
                                                         placeholder="글 제목"
                                                         value={item.title}
                                                         onChange={(e) => updateBatchItemTitle(item.id, e.target.value)}
                                                         className="px-3 py-2 bg-gray-50 rounded-lg text-sm outline-none w-full"
-                                                        readOnly={batchProcessing || item.status !== 'idle'} // Lock during process
                                                     />
                                                     <input
                                                         placeholder="키워드 (쉼표로 구분)"
                                                         value={item.keywords.join(', ')}
                                                         onChange={(e) => updateBatchItemKeywords(item.id, e.target.value)}
                                                         className="px-3 py-2 bg-gray-50 rounded-lg text-sm outline-none w-full"
-                                                        readOnly={batchProcessing || item.status !== 'idle'}
                                                     />
                                                 </div>
                                                 <div className="w-20 flex justify-end flex-none text-xs">
                                                     {item.status === 'loading' ? <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" /> :
-                                                        item.status === 'success' ?
-                                                            <div className="flex gap-2">
-                                                                <button onClick={() => handleViewResult(item.title, item.result || '')} className="text-blue-500 hover:text-blue-700 font-bold underline">보기</button>
-                                                                <Check className="text-green-500 w-5 h-5" />
-                                                            </div> :
+                                                        item.status === 'success' ? <Check className="text-green-500 w-5 h-5" /> :
                                                             item.status === 'error' ? <span className="text-red-500" title={item.errorMsg}>오류</span> :
                                                                 <button onClick={() => removeBatchItem(item.id)} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100"><Trash className="w-4 h-4" /></button>
                                                     }
@@ -838,7 +644,7 @@ export default function BlogPage() {
                                             </div>
                                         ))}
 
-                                        {batchItems.length < 100 && !batchProcessing && (
+                                        {batchItems.length < 10 && (
                                             <button onClick={addBatchItem} className="w-full py-3 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 hover:bg-gray-50 font-medium text-sm">
                                                 <Plus className="w-4 h-4 inline-block mr-2" /> 항목 추가하기
                                             </button>
@@ -856,22 +662,13 @@ export default function BlogPage() {
                                         </button>
 
                                         {batchItems.some(i => i.status === 'success') && (
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => handleDownloadAll('md')}
-                                                    className={`px-4 py-4 bg-gray-800 hover:bg-black text-white font-bold rounded-xl shadow-lg flex items-center gap-2 transition-all`}
-                                                >
-                                                    <Download className="w-5 h-5" />
-                                                    MD
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDownloadAll('txt')}
-                                                    className={`px-4 py-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-lg flex items-center gap-2 transition-all`}
-                                                >
-                                                    <Download className="w-5 h-5" />
-                                                    TXT
-                                                </button>
-                                            </div>
+                                            <button
+                                                onClick={handleDownloadAll}
+                                                className={`px-6 py-4 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl shadow-lg flex items-center gap-2 transition-all`}
+                                            >
+                                                <Download className="w-5 h-5" />
+                                                전체 다운로드
+                                            </button>
                                         )}
                                     </div>
                                 </div>
@@ -895,25 +692,8 @@ export default function BlogPage() {
                                     <button onClick={handleOpenGroupModal} className="text-xs font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-lg flex items-center gap-1">
                                         <Settings className="w-3 h-3" /> 그룹설정
                                     </button>
-                                    {profiles.length > 0 && (
-                                        <button onClick={handleClearProfiles} className="text-xs font-bold text-red-500 bg-red-50 hover:bg-red-100 px-2 py-1 rounded-lg flex items-center gap-1">
-                                            <Trash className="w-3 h-3" /> 초기화
-                                        </button>
-                                    )}
                                     <span className="text-xs font-medium text-gray-400">{profiles.length}/100</span>
                                 </div>
-                            </div>
-
-                            {/* Sidebar Group Filter */}
-                            <div className="mb-4">
-                                <select
-                                    value={sidebarSelectedGroup}
-                                    onChange={(e) => setSidebarSelectedGroup(e.target.value)}
-                                    className="w-full p-3 bg-white border border-gray-200 rounded-xl focus:border-blue-500 outline-none text-sm text-gray-700 font-medium"
-                                >
-                                    <option value="전체">전체 그룹 보기</option>
-                                    {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                                </select>
                             </div>
 
                             <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-3 mb-6 flex-none">
@@ -928,30 +708,22 @@ export default function BlogPage() {
                             </div>
 
                             <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-1">
-                                {profiles
-                                    .filter(p => sidebarSelectedGroup === '전체' || p.category === sidebarSelectedGroup)
-                                    .map(profile => (
-                                        <div key={profile.id} className="p-4 bg-white border border-gray-200 rounded-xl hover:border-blue-400 group relative shadow-sm">
-                                            <div className="flex justify-between items-start mb-1">
-                                                <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">{profile.category}</span>
-                                                <button
-                                                    onClick={() => handleDeleteProfile(profile.id)}
-                                                    className="text-gray-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"
-                                                    title="Delete Profile"
-                                                >
-                                                    <Trash className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                            <h3 className="font-bold text-gray-800 mb-1">{profile.name}</h3>
-                                            <p className="text-xs text-gray-500 line-clamp-2 bg-gray-50 p-2 rounded">{profile.style || "설정된 성향 없음"}</p>
+                                {profiles.map(profile => (
+                                    <div key={profile.id} className="p-4 bg-white border border-gray-200 rounded-xl hover:border-blue-400 group relative shadow-sm">
+                                        <div className="flex justify-between items-start mb-1">
+                                            <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">{profile.category}</span>
+                                            <button onClick={() => handleDeleteProfile(profile.id)} className="text-gray-300 hover:text-red-500 p-1"><Trash className="w-3 h-3" /></button>
                                         </div>
-                                    ))}
+                                        <h3 className="font-bold text-gray-800 mb-1">{profile.name}</h3>
+                                        <p className="text-xs text-gray-500 line-clamp-2 bg-gray-50 p-2 rounded">{profile.style || "설정된 성향 없음"}</p>
+                                    </div>
+                                ))}
                                 {profiles.length === 0 && <div className="text-center py-10 text-gray-400 text-sm bg-gray-100/50 rounded-xl border-dashed border-gray-300">프로필을 추가해주세요</div>}
                             </div>
                         </div>
                     </aside>
-                </div >
-            </div >
-        </div >
+                </div>
+            </div>
+        </div>
     );
 }

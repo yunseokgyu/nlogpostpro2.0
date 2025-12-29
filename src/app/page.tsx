@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Sparkles, Copy, Check, Settings, Eye, EyeOff, Save, Trash, User, Users, Plus, Download, FileText, Zap, RefreshCw, AlertCircle, Loader2, Link as LinkIcon, X } from 'lucide-react';
+import { Sparkles, Copy, Check, Settings, Eye, EyeOff, Save, Trash, User, Users, Plus, Download, FileText, Zap, RefreshCw, AlertCircle, Loader2, Link as LinkIcon, X, Upload } from 'lucide-react';
 import JSZip from 'jszip';
 
 // --- Types ---
@@ -433,6 +433,61 @@ export default function BlogPage() {
         setIsGroupModalOpen(false);
     };
 
+    // --- Backup & Restore ---
+    const handleExportData = () => {
+        const data = {
+            profiles,
+            categories,
+            apiKey,
+            version: '2.0',
+            exportedAt: new Date().toISOString()
+        };
+
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `BlogMaster_Backup_${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const json = JSON.parse(event.target?.result as string);
+
+                if (confirm("현재 데이터를 덮어쓰고 백업 파일의 내용을 복원하시겠습니까?")) {
+                    if (json.profiles) {
+                        setProfiles(json.profiles);
+                        localStorage.setItem('blog_profiles', JSON.stringify(json.profiles));
+                    }
+                    if (json.categories) {
+                        setCategories(json.categories);
+                        localStorage.setItem('blog_custom_groups', JSON.stringify(json.categories));
+                    }
+                    if (json.apiKey) {
+                        setApiKey(json.apiKey);
+                        localStorage.setItem('gemini_api_key', json.apiKey);
+                    }
+                    alert("데이터 복원이 완료되었습니다.");
+                }
+            } catch (err) {
+                alert("파일을 읽는 중 오류가 발생했습니다. 올바른 백업 파일인지 확인해주세요.");
+                console.error(err);
+            }
+        };
+        reader.readAsText(file);
+        // Reset input
+        e.target.value = '';
+    };
+
     // --- Modal ---
     const [modalOpen, setModalOpen] = useState(false);
     const [modalTitle, setModalTitle] = useState('');
@@ -519,10 +574,20 @@ export default function BlogPage() {
                         </div>
                         <div className="ml-auto flex gap-2">
                             <div className="flex flex-col items-end text-xs text-gray-400">
-                                <span>v2.0 Update</span>
+                                <div className="flex flex-col items-end text-xs text-gray-400 gap-1">
+                                    <span>v2.1 (Backup)</span>
+                                    <div className="flex gap-2">
+                                        <button onClick={handleExportData} className="flex items-center gap-1 hover:text-blue-600 font-bold transition-colors" title="설정 백업(저장)">
+                                            <Download className="w-3 h-3" /> 백업
+                                        </button>
+                                        <label className="flex items-center gap-1 hover:text-green-600 font-bold transition-colors cursor-pointer" title="설정 복원(불러오기)">
+                                            <Upload className="w-3 h-3" /> 복원
+                                            <input type="file" accept=".json" onChange={handleImportData} className="hidden" />
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
                 </header>
 
                 <div className="flex flex-1 flex-col lg:flex-row overflow-hidden">

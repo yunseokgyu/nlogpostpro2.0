@@ -1,5 +1,5 @@
 @echo off
-cd /d "c:\Users\ysk144\.gemini\antigravity\playground\harmonic-prominence"
+cd /d "%~dp0"
 echo Starting AI Blog Master...
 echo Opening Browser...
 start http://localhost:3000/blog

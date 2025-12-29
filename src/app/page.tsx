@@ -572,29 +572,60 @@ const handleExportData = () => {
     URL.revokeObjectURL(url);
 };
 
-const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
+const handleImportData = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
         try {
             const json = JSON.parse(event.target?.result as string);
 
-            if (confirm("현재 데이터를 덮어쓰고 백업 파일의 내용을 복원하시겠습니까?")) {
-                if (json.profiles) {
-                    setProfiles(json.profiles);
-                    localStorage.setItem('blog_profiles', JSON.stringify(json.profiles));
+            if (confirm("현재 데이터를 덮어쓰고 백업 파일의 내용을 복원(클라우드 저장)하시겠습니까?")) {
+
+                // 1. Restore UI State first
+                if (json.profiles) setProfiles(json.profiles);
+                if (json.categories) setCategories(json.categories);
+                if (json.apiKey) setApiKey(json.apiKey);
+
+                // 2. Save to Supabase (Migration)
+                if (user) {
+                    try {
+                        // Save Settings
+                        await supabase.from('user_settings').upsert({
+                            user_id: user.id,
+                            gemini_api_key: json.apiKey || apiKey,
+                            custom_groups: json.categories || categories
+                        });
+
+                        // Save Profiles (Bulk Insert)
+                        // Note: we might want to clear old profiles or just add new ones. 
+                        // For "Restore", let's clear and re-insert to match the file exactly? 
+                        // Or safer: just upsert using ID.
+                        if (json.profiles && Array.isArray(json.profiles)) {
+                            const profileRows = json.profiles.map((p: any) => ({
+                                id: p.id || crypto.randomUUID(),
+                                user_id: user.id,
+                                name: p.name,
+                                category: p.category,
+                                style: p.style,
+                                created_at: p.createdAt || new Date().toISOString()
+                            }));
+
+                            // Delete existing to avoid duplicates if ID matches, or just insert
+                            // Let's use upsert if ID exists.
+                            const { error } = await supabase.from('blog_profiles').upsert(profileRows);
+                            if (error) throw error;
+                        }
+
+                        alert("데이터가 클라우드에 성공적으로 저장되었습니다!");
+                    } catch (dbErr) {
+                        console.error(dbErr);
+                        alert("데이터 UI는 복구되었으나, 클라우드 저장 중 일부 오류가 발생했습니다.");
+                    }
+                } else {
+                    alert("로그인 상태가 아닙니다. 데이터는 화면에만 표시되며 저장되지 않습니다.");
                 }
-                if (json.categories) {
-                    setCategories(json.categories);
-                    localStorage.setItem('blog_custom_groups', JSON.stringify(json.categories));
-                }
-                if (json.apiKey) {
-                    setApiKey(json.apiKey);
-                    localStorage.setItem('gemini_api_key', json.apiKey);
-                }
-                alert("데이터 복원이 완료되었습니다.");
             }
         } catch (err) {
             alert("파일을 읽는 중 오류가 발생했습니다. 올바른 백업 파일인지 확인해주세요.");

@@ -650,6 +650,32 @@ const handleViewResult = (title: string, content: string) => {
 
 // --- Renders ---
 
+// --- Legacy Backup Handler (for Migration) ---
+const handleLegacyBackup = () => {
+    const savedProfiles = localStorage.getItem('blog_profiles');
+    const savedCategories = localStorage.getItem('blog_custom_groups');
+    const savedKey = localStorage.getItem('gemini_api_key');
+
+    if (!savedProfiles && !savedCategories) {
+        alert("브라우저에 저장된 기존 데이터가 없습니다.");
+        return;
+    }
+
+    const backupData = {
+        profiles: savedProfiles ? JSON.parse(savedProfiles) : [],
+        categories: savedCategories ? JSON.parse(savedCategories) : [],
+        apiKey: savedKey || ''
+    };
+
+    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `blog_backup_legacy_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+};
+
 if (authLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin w-8 h-8 text-blue-500" /></div>;
 
 if (!user) {
@@ -663,6 +689,16 @@ if (!user) {
                 <p className="text-gray-500">어디서든 연결되는 나만의 창작 스튜디오</p>
             </div>
             <Auth onLogin={() => { }} />
+
+            <div className="mt-8 pt-6 border-t border-gray-100 flex flex-col items-center">
+                <button
+                    onClick={handleLegacyBackup}
+                    className="text-xs text-gray-400 hover:text-gray-600 underline flex items-center justify-center gap-1 mx-auto transition-colors"
+                >
+                    <Download className="w-3 h-3" /> 기존(로컬) 데이터 백업받기
+                </button>
+                <p className="text-[10px] text-gray-300 mt-2">로그인 화면이 떠서 기존 데이터를 못 찾으시는 경우 클릭하세요.</p>
+            </div>
         </div>
     );
 }

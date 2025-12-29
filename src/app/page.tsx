@@ -580,12 +580,22 @@ export default function BlogPage() {
 
                 if (confirm("현재 데이터를 덮어쓰고 백업 파일의 내용을 복원(클라우드 저장)하시겠습니까?")) {
 
-                    // 1. Restore UI State first
-                    if (json.profiles) setProfiles(json.profiles);
+                    // 1. Sanitize Profiles (Generate new UUIDs to fix legacy ID issues)
+                    let sanitizedProfiles: any[] = [];
+                    if (json.profiles && Array.isArray(json.profiles)) {
+                        sanitizedProfiles = json.profiles.map((p: any) => ({
+                            ...p,
+                            id: crypto.randomUUID(), // Force new UUID
+                            // Assign to current user owner if not preset (it won't be in export)
+                        }));
+                    }
+
+                    // 2. Restore UI State (with NEW IDs)
+                    if (sanitizedProfiles.length > 0) setProfiles(sanitizedProfiles);
                     if (json.categories) setCategories(json.categories);
                     if (json.apiKey) setApiKey(json.apiKey);
 
-                    // 2. Save to Supabase (Migration)
+                    // 3. Save to Supabase (Migration)
                     if (user) {
                         try {
                             // Save Settings
@@ -595,13 +605,10 @@ export default function BlogPage() {
                                 custom_groups: json.categories || categories
                             });
 
-                            // Save Profiles (Bulk Insert)
-                            // Note: we might want to clear old profiles or just add new ones. 
-                            // For "Restore", let's clear and re-insert to match the file exactly? 
-                            // Or safer: just upsert using ID.
-                            if (json.profiles && Array.isArray(json.profiles)) {
-                                const profileRows = json.profiles.map((p: any) => ({
-                                    id: p.id || crypto.randomUUID(),
+                            // Save Profiles
+                            if (sanitizedProfiles.length > 0) {
+                                const profileRows = sanitizedProfiles.map(p => ({
+                                    id: p.id,
                                     user_id: user.id,
                                     name: p.name,
                                     category: p.category,
@@ -609,8 +616,6 @@ export default function BlogPage() {
                                     created_at: p.createdAt || new Date().toISOString()
                                 }));
 
-                                // Delete existing to avoid duplicates if ID matches, or just insert
-                                // Let's use upsert if ID exists.
                                 const { error } = await supabase.from('blog_profiles').upsert(profileRows);
                                 if (error) throw error;
                             }

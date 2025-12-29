@@ -181,6 +181,13 @@ export default function BlogPage() {
         }
     }, []);
 
+    // Sync new profile category with sidebar selection
+    useEffect(() => {
+        if (sidebarSelectedGroup !== '전체') {
+            setNewProfileCategory(sidebarSelectedGroup);
+        }
+    }, [sidebarSelectedGroup]);
+
     // --- Handlers ---
 
     const saveApiKey = (key: string) => {
@@ -588,6 +595,7 @@ export default function BlogPage() {
                                 </div>
                             </div>
                         </div>
+                    </div>
                 </header>
 
                 <div className="flex flex-1 flex-col lg:flex-row overflow-hidden">
@@ -998,7 +1006,12 @@ export default function BlogPage() {
                                     .map(profile => (
                                         <div key={profile.id} className="p-4 bg-white border border-gray-200 rounded-xl hover:border-blue-400 group relative shadow-sm">
                                             <div className="flex justify-between items-start mb-1">
-                                                <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">{profile.category}</span>
+                                                <button
+                                                    onClick={() => setSidebarSelectedGroup(profile.category)}
+                                                    className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 hover:bg-blue-100 transition-colors"
+                                                >
+                                                    {profile.category}
+                                                </button>
                                                 <button
                                                     onClick={() => handleDeleteProfile(profile.id)}
                                                     className="text-gray-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors"
